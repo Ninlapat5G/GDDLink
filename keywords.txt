@@ -1,0 +1,31 @@
+#######################################
+# Syntax Coloring Map For GDDLink
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+GDDLink	KEYWORD1
+Callback	KEYWORD1
+Reader	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+feed	KEYWORD2
+poll	KEYWORD2
+send	KEYWORD2
+value	KEYWORD2
+valueInt	KEYWORD2
+onReceive	KEYWORD2
+bindDigitalOut	KEYWORD2
+bindAnalogOut	KEYWORD2
+watch	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+GDDLINK_MAX_CHANNELS	LITERAL1
