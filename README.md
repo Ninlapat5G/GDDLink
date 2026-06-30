@@ -46,37 +46,61 @@ void loop() {
 
 ## แต่ละหน้าจอ
 
-**Hand** — ท่าทางสำเร็จรูป/ที่ฝึกเอง, แกนต่อเนื่อง, หรือพิกัดดิบ:
+**Hand** — ท่าทางสำเร็จรูป/ที่ฝึกเอง, แกนต่อเนื่อง, หรือพิกัดดิบ (ตัวอย่างเต็ม `examples/Hand`):
 ```cpp
-gdd.onGesture([](const String &name) { ... });               // เช่น "FIST"
-gdd.onMotion([](const String &name, int value) { ... });     // แกนฝึกเอง 0-100
-gdd.onHand([](int ix, int iy, int tx, int ty, int pinch) { ... });
+void onGesture(const String &name) {
+  if (name == "FIST") digitalWrite(LED, HIGH);
+  if (name == "OPEN") digitalWrite(LED, LOW);
+}
+void setup() {
+  gdd.onGesture(onGesture);
+}
 ```
 
-**Gamepad** — ปุ่มกดและสติ๊กอนาล็อก:
+**Gamepad** — ปุ่มกดและสติ๊กอนาล็อก (ตัวอย่างเต็ม `examples/Gamepad`):
 ```cpp
-gdd.onButton([](const String &btn, bool pressed) { ... });
-gdd.onStick([](const String &side, float x, float y) { ... }); // side = "L"/"R"
+void onButton(const String &btn, bool pressed) {
+  if (btn == "A") digitalWrite(LED, pressed ? HIGH : LOW);
+}
+void setup() {
+  gdd.onButton(onButton);
+}
 ```
 
-**Servo Studio** — channel 1-4, angle 0-180:
+**Servo Studio** — channel 1-4, angle 0-180 (ตัวอย่างเต็ม `examples/Servo`):
 ```cpp
-gdd.onServo([](int channel, int angle) { ... });
+void onServo(int channel, int angle) {
+  if (channel == 1) myServo.write(angle);
+}
+void setup() {
+  gdd.onServo(onServo);
+}
 ```
 
-**Voice** — ข้อความที่แปลงจากเสียงแล้ว:
+**Voice** — ข้อความที่แปลงจากเสียงแล้ว (ตัวอย่างเต็ม `examples/Voice`):
 ```cpp
-gdd.onVoice([](const String &text) { ... });
+void onVoice(const String &text) {
+  if (text.indexOf("เปิด") >= 0) digitalWrite(RELAY, HIGH);
+  if (text.indexOf("ปิด") >= 0) digitalWrite(RELAY, LOW);
+}
+void setup() {
+  gdd.onVoice(onVoice);
+}
 ```
 
-**Car / Tilt** — ใช้ตัวจบข้อความ `';'` (ดูหัวข้อด้านล่าง) เพราะแอปส่งคำสั่งพวกนี้แบบนั้น:
+**Car / Tilt** — ใช้ตัวจบข้อความ `';'` (ดูหัวข้อด้านล่าง) เพราะแอปส่งคำสั่งพวกนี้แบบนั้น (ตัวอย่างเต็ม `examples/Car`, `examples/Tilt`):
 ```cpp
 GDDLink gdd(BT, ';');
-gdd.onCarSpeed([](int speed) { ... });        // เฉพาะ Car ส่งความเร็วมาด้วย
-gdd.onCarCommand([](const String &cmd) { ... }); // "F"/"B"/"L"/"R"/"S" หรือคำสั่งอื่น
-```
 
-ดูตัวอย่างเต็มของแต่ละหน้าจอที่ `examples/Hand`, `examples/Gamepad`, `examples/Servo`, `examples/Car`, `examples/Tilt`, `examples/Voice`
+void onCarCommand(const String &cmd) {
+  if      (cmd == "F") motor(1, 0, 1, 0);
+  else if (cmd == "S") motor(0, 0, 0, 0);
+}
+void setup() {
+  gdd.onCarSpeed([](int speed) { spd = speed; }); // เฉพาะ Car ส่งความเร็วมาด้วย
+  gdd.onCarCommand(onCarCommand);
+}
+```
 
 ## Switch I/O / AI Chat
 
