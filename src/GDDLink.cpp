@@ -1,6 +1,6 @@
 #include "GDDLink.h"
 
-GDDLink::GDDLink(Stream &port) : _port(port) {}
+GDDLink::GDDLink(Stream &port, char terminator) : _port(port), _terminator(terminator) {}
 
 GDDLink::Channel *GDDLink::_find(const String &name) const {
   for (uint8_t i = 0; i < _count; i++) {
@@ -19,7 +19,7 @@ GDDLink::Channel *GDDLink::_findOrCreate(const String &name) {
 }
 
 void GDDLink::feed(char c) {
-  if (c == '\n') {
+  if (c == _terminator) {
     _handleLine(_rxBuffer);
     _rxBuffer = "";
   } else if (c != '\r') {
@@ -80,7 +80,8 @@ void GDDLink::_handleLine(String line) {
 void GDDLink::send(const String &name, const String &value) {
   _port.print(name);
   _port.print(':');
-  _port.println(value);
+  _port.print(value);
+  _port.print(_terminator);
 }
 
 void GDDLink::send(const String &name, long value) { send(name, String(value)); }

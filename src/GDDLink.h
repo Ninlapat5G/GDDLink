@@ -55,7 +55,13 @@ public:
   // (BluetoothSerial, Serial, Serial1, a SoftwareSerial, ...). Used for
   // outgoing send()/watch() traffic; incoming bytes are still read by your
   // own sketch and handed to feed(), see below.
-  explicit GDDLink(Stream &port);
+  //
+  // `terminator` is the byte that ends a "NAME:value" message, both ways —
+  // default '\n' matches the usual Arduino convention (println(), readStringUntil('\n')).
+  // Change it if your project already uses something else to separate
+  // messages on the same link (e.g. ';' if you're sharing the stream with
+  // another unframed protocol that has no terminator of its own).
+  explicit GDDLink(Stream &port, char terminator = '\n');
 
   // Hand it one byte you just read yourself, e.g.:
   //   while (BT.available()) gdd.feed(BT.read());
@@ -116,6 +122,7 @@ private:
   };
 
   Stream &_port;
+  char _terminator;
   String _rxBuffer;
   Channel _channels[GDDLINK_MAX_CHANNELS]; // fixed at compile time, no heap
   uint8_t _count = 0;
