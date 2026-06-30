@@ -1,111 +1,111 @@
 # GDDLink
 
-ไลบรารี Arduino ที่เล็กที่สุดเท่าที่จะทำได้ สำหรับ **รับ-ส่งข้อมูล** กับแอป Arduino Bluetooth (GDD) เท่านั้น — ไม่ยุ่งกับ gesture/gamepad/car ให้เพิ่มความซับซ้อน
+ไลบรารี Arduino เล็กๆ สำหรับรับ-ส่งข้อมูลกับแอป Arduino Bluetooth (GDD) เฉพาะหน้า Switch I/O และ AI Chat เท่านั้น ไม่ยุ่งกับ Hand, Gamepad, Car เพื่อให้ใช้ง่ายจริงๆ
 
-แอป (หน้า Switch I/O และ AI Chat) คุยกันด้วยข้อความบรรทัดเดียวรูปแบบ `NAME:value` (เช่น `LED:1`, `Temp:25.4`) — ไลบรารีนี้ทำหน้าที่แค่ "แปลงบรรทัดนั้นให้เป็นขาจริง" และ "ส่งค่ากลับ" ให้ง่ายที่สุด
+## คอนเซปต์
 
-**การอ่านข้อมูลเข้ายังเป็นแบบ Arduino มาตรฐาน** — เด็กยังคุม `if/while (BT.available())` กับ `BT.read()` เองเหมือนตัวอย่าง .ino อื่นๆ ในแอป ไลบรารีนี้ไม่แย่งงานอ่านไปทำเอง รับแค่ "ตัวอักษรที่อ่านมาแล้ว" ผ่าน `gdd.feed(c)` ไปจัดรูปให้เป็น `NAME:value`
+แอปคุยกับบอร์ดด้วยข้อความบรรทัดเดียวรูปแบบ `NAME:value` เช่น `LED:1`, `Temp:25.4` GDDLink ทำแค่สองอย่าง: แปลงบรรทัดที่อ่านมาให้เป็นการสั่งขาจริง และส่งค่ากลับไปแอปเวลาขาเปลี่ยน
+
+การอ่านข้อมูลเข้ายังเป็นแบบ Arduino ปกติทุกอย่าง เด็กยังคุม `BT.available()` / `BT.read()` เองเหมือนตัวอย่างอื่นในแอป ไลบรารีนี้รับแค่ตัวอักษรที่อ่านมาแล้วผ่าน `gdd.feed(c)` ไปจัดเป็น `NAME:value` ให้
 
 ## ติดตั้ง
 
-- **Arduino IDE**: คัดลอกโฟลเดอร์ `GDDLink/` นี้ทั้งโฟลเดอร์ไปไว้ใน `Documents/Arduino/libraries/` (หรือ Sketch → Include Library → Add .ZIP Library… แล้วเลือกโฟลเดอร์นี้ที่ซิปไว้)
-- **PlatformIO**: อยู่ใน `firmware/lib/GDDLink/` อยู่แล้ว ตัวโปรเจกต์ `firmware/` เห็นเองอัตโนมัติ แค่ `#include <GDDLink.h>`
+- **Arduino IDE**: คัดลอกโฟลเดอร์ `GDDLink/` ไปไว้ใน `Documents/Arduino/libraries/` หรือ Sketch → Include Library → Add .ZIP Library… แล้วเลือกโฟลเดอร์นี้
+- **PlatformIO**: อยู่ใน `firmware/lib/GDDLink/` อยู่แล้ว โปรเจกต์ `firmware/` เห็นเอง แค่ `#include <GDDLink.h>`
 
-## ใช้งานแบบง่ายที่สุด (ผูกชื่อ → ขา โดยตรง)
+## ใช้งานพื้นฐาน
 
 ```cpp
 #include <BluetoothSerial.h>
 #include <GDDLink.h>
 
 BluetoothSerial BT;
-GDDLink gdd(BT);           // ใช้กับ Stream อะไรก็ได้: BluetoothSerial, Serial, Serial1, SoftwareSerial
-                            // (อย่าตั้งชื่อตัวแปรว่า "link" — ชนกับ libc บน ESP32)
+GDDLink gdd(BT);   // ใช้กับ Stream อะไรก็ได้ เช่น Serial, SoftwareSerial
+                    // อย่าตั้งชื่อตัวแปรว่า "link" เพราะชนกับ libc บน ESP32
 
 String readTemp() { return String(analogRead(A0)); }
 
 void setup() {
   BT.begin("GDD-ESP32");
-  gdd.bindDigitalOut("LED", 2);      // ช่อง "LED" (Digital) ในแอป -> ขา 2
-  gdd.bindAnalogOut("Motor", 4);     // ช่อง "Motor" (Analog 0-255) ในแอป -> ขา 4 (PWM)
-  gdd.watch("Temp", readTemp);       // อ่านขา -> ส่งกลับไปแอป "เฉพาะตอนค่าเปลี่ยน"
+  gdd.bindDigitalOut("LED", 2);     // ช่อง LED ในแอป -> ขา 2
+  gdd.bindAnalogOut("Motor", 4);    // ช่อง Motor (0-255) -> ขา 4 (PWM)
+  gdd.watch("Temp", readTemp);      // อ่านขา แล้วส่งกลับเมื่อค่าเปลี่ยน
 }
 
 void loop() {
-  while (BT.available()) {
-    gdd.feed(BT.read());             // อ่านเองทีละไบต์ เหมือนตัวอย่างอื่นๆ ในแอป
-  }
-  gdd.poll();                        // เช็ค watch() — ส่ง "Temp:.." ทันทีที่ค่าเปลี่ยน
+  while (BT.available()) gdd.feed(BT.read());
+  gdd.poll();   // ส่งค่า watch() ที่เปลี่ยนกลับไปแอป
 }
 ```
 
-สามตัวอย่างนี้ตรงกับช่องตั้งต้นของแอป (`LED`, `Motor`, `Temp`) พอดี — ดูตัวอย่างเต็มที่ `examples/SwitchIO/`
+ชื่อช่องสามตัวนี้ (`LED`, `Motor`, `Temp`) ตรงกับค่าตั้งต้นในแอปพอดี ตัวอย่างเต็มอยู่ที่ `examples/SwitchIO/`
 
-**หมายเหตุ:** `watch()` ตั้งใจไม่ส่งแบบ "ทุก N มิลลิวินาที" — จะเช็คค่าได้ไม่เกินทุก `minIntervalMs` (ดีฟอลต์ 200ms กันอ่านถี่เกินไป) แต่จะ **ส่งออก BT ก็ต่อเมื่อค่าจริงๆ เปลี่ยน** เท่านั้น ประหยัดแบนด์วิดท์/พลังงานกว่ารูปแบบ timer ส่งทุกวินาทีที่เห็นใน sketch ตัวอย่างทั่วไป
+`watch()` ไม่ได้ส่งทุก N มิลลิวินาที แต่เช็คค่าได้ไม่เกินทุก `minIntervalMs` (ดีฟอลต์ 200ms) แล้วส่งออกเฉพาะตอนค่าเปลี่ยนจริงเท่านั้น ประหยัดกว่ารูปแบบ timer ส่งทุกวินาทีที่เห็นบ่อยๆ
 
-## ถ้าต้องการ logic เอง
+## เขียน logic เอง
 
-ใช้ `onReceive(name, callback)` แทน `bindDigitalOut`/`bindAnalogOut` เมื่อชื่อเดียวต้องคุมหลายขา หรือมี logic พิเศษ — ดู `examples/CustomCallback/`
+ชื่อเดียวต้องคุมหลายขา หรือมี logic พิเศษ ใช้ `onReceive(name, callback)` แทน `bindDigitalOut`/`bindAnalogOut` ดู `examples/CustomCallback/`
 
-## รับ-ส่งสองทางพร้อมกัน บนชื่อช่องเดียวกัน
+## รับ-ส่งสองทางบนชื่อเดียวกัน
 
-`bindDigitalOut`/`bindAnalogOut` เป็นแค่ทิศทางเดียว (แอป → ขา) — ถ้ามีอะไรไปเปลี่ยนขานั้นเอง เช่นปุ่มกดจริงบนบอร์ด ตัวไลบรารีจะไม่รู้ และจะไม่ส่งอะไรกลับไปแอปให้เองอัตโนมัติ
+`bindDigitalOut`/`bindAnalogOut` ส่งทางเดียว (แอป → ขา) ถ้ามีปุ่มจริงบนบอร์ดไปเปลี่ยนขานั้นเอง ไลบรารีไม่รู้ และจะไม่ส่งอะไรกลับไปแอปให้
 
-ถ้าอยากให้แอปเห็นสถานะจริงของขาด้วย (ไม่ว่าใครเป็นคนเปลี่ยน) ผูก `bindDigitalOut` กับ `watch` บน **ชื่อช่องเดียวกัน** ได้เลย ไม่ชนกัน:
+ผูก `bindDigitalOut` กับ `watch` บนชื่อช่องเดียวกันได้เลย ไม่ชนกัน:
 
 ```cpp
-gdd.bindDigitalOut("LED", LED_PIN);                          // แอป -> ขา
-gdd.watch("LED", []() { return String(digitalRead(LED_PIN)); }); // ขา -> แอป
+gdd.bindDigitalOut("LED", LED_PIN);
+gdd.watch("LED", []() { return String(digitalRead(LED_PIN)); });
 ```
 
-ตัวอย่างเต็มที่ปุ่มกดจริงเปลี่ยน LED แล้วแอปเห็นสถานะอัปเดตทันที ดู `examples/ButtonSync/`
+ตัวอย่างเต็ม (ปุ่มกดจริงเปลี่ยน LED แล้วแอปเห็นสถานะอัปเดตทันที) ดู `examples/ButtonSync/`
 
-## อ้างอิง API
+## API
 
 | ฟังก์ชัน | ทำอะไร |
 |---|---|
-| `GDDLink gdd(stream, terminator='\n')` | สร้าง instance จาก `Stream` ใดก็ได้ (ตั้งชื่อตัวแปรอะไรก็ได้ แต่อย่าใช้ `link` — ชนกับ libc บน ESP32) ปรับตัวจบข้อความได้ |
-| `gdd.feed(c)` | ส่งตัวอักษรที่อ่านมาเอง (`BT.read()`) เข้าไปทีละตัว — สะสมจนครบบรรทัด แล้ว parse `NAME:value`, สั่งขาที่ bind ไว้, เรียก callback ให้ |
-| `gdd.poll()` | เรียกทุกรอบ `loop()` (ไม่ต้องมีเงื่อนไข) — เช็คว่า `watch()` ตัวไหนค่าเปลี่ยนแล้วส่งออก ไม่เกี่ยวกับการอ่านข้อมูลเข้า |
-| `gdd.send(name, value)` | ส่ง `name:value<terminator>` ออกไปทันที (รับ `String`/`int`/`long`/`float`) |
-| `gdd.bindDigitalOut(name, pin)` | ผูกชื่อช่องกับขา digital (`pinMode(OUTPUT)` ให้อัตโนมัติ) |
-| `gdd.bindAnalogOut(name, pin)` | ผูกชื่อช่องกับขา PWM (0-255) |
-| `gdd.onReceive(name, fn)` | เรียก `fn(value)` ทุกครั้งที่ได้รับชื่อนี้ |
-| `gdd.watch(name, fn, minIntervalMs=200)` | เช็ค `fn()` อย่างเร็วสุดทุก `minIntervalMs` แล้วส่งออกเฉพาะตอนค่าเปลี่ยนจากที่ส่งล่าสุด |
+| `GDDLink gdd(stream, terminator='\n')` | สร้าง instance จาก Stream ใดก็ได้ ปรับตัวจบข้อความได้ |
+| `gdd.feed(c)` | ป้อนตัวอักษรที่อ่านมาทีละตัว สะสมจนครบบรรทัดแล้ว parse เป็น `NAME:value` |
+| `gdd.poll()` | เรียกทุกรอบ loop() เช็คว่า watch() ตัวไหนค่าเปลี่ยนแล้วส่งออก |
+| `gdd.send(name, value)` | ส่ง `name:value<terminator>` ทันที (รับ String/int/long/float) |
+| `gdd.bindDigitalOut(name, pin)` | ผูกชื่อช่องกับขา digital |
+| `gdd.bindAnalogOut(name, pin)` | ผูกชื่อช่องกับขา PWM |
+| `gdd.onReceive(name, fn)` | เรียก fn(value) ทุกครั้งที่ได้รับชื่อนี้ |
+| `gdd.watch(name, fn, minIntervalMs=200)` | เช็ค fn() แล้วส่งออกเฉพาะตอนค่าเปลี่ยน |
 | `gdd.value(name)` / `gdd.valueInt(name)` | ค่าล่าสุดที่ได้รับของชื่อนี้ |
 
-## หน่วยความจำ — สไตล์ Arduino จริงๆ ไม่ใช้ heap
+## หน่วยความจำ
 
-จำนวนช่อง (channel) สูงสุดที่ track ได้ถูกกำหนดตอนคอมไพล์ ดีฟอลต์ **16 ช่อง** เก็บใน fixed array ไม่มีการ `new`/`malloc` ระหว่างทำงานเลย — ปลอดภัยกับบอร์ดเล็กอย่าง Uno/Nano ที่มี RAM แค่ 2KB (heap fragmentation จากการจองหน่วยความจำขณะรันเป็นปัญหาจริงบนบอร์ดพวกนี้)
+ไม่ใช้ heap เลย ช่องสัญญาณเก็บใน array ขนาดคงที่ตอนคอมไพล์ ดีฟอลต์ 16 ช่อง ปลอดภัยกับบอร์ดเล็กอย่าง Uno/Nano ที่มี RAM แค่ 2KB
 
-ถ้าต้องการมากกว่า 16 ช่อง ใส่บรรทัดนี้ **ก่อน** `#include <GDDLink.h>`:
+ถ้าต้องการมากกว่า 16 ช่อง ใส่บรรทัดนี้ก่อน `#include <GDDLink.h>`:
 ```cpp
 #define GDDLINK_MAX_CHANNELS 24
 #include <GDDLink.h>
 ```
 
-## เปลี่ยนตัวจบข้อความ (terminator)
+## ตัวจบข้อความ (terminator)
 
-ดีฟอลต์คือ `\n` (มาตรฐาน Arduino ทั่วไป) แต่ถ้าโปรเจกต์ของคุณใช้ลิงก์เดียวกันร่วมกับโปรโตคอลอื่นที่ไม่มีตัวจบของตัวเอง (เช่นคำสั่งดิบตัวอักษรเดียวแบบ `F`/`B`/`L`/`R` ของโหมดขับรถ) แล้วอยากให้ทุกอย่างจบด้วยตัวเดียวกันเพื่อไม่ต้องเดาว่าข้อความจบหรือยัง ใส่ตัวจบเองได้ที่ constructor:
+ดีฟอลต์คือ `\n` ถ้าลิงก์เดียวกันต้องใช้ร่วมกับโปรโตคอลอื่นที่ไม่มีตัวจบของตัวเอง เช่นคำสั่งรถ `F`/`B`/`L`/`R` ตัวอักษรเดียว เปลี่ยนตัวจบได้ที่ constructor:
 
 ```cpp
-GDDLink gdd(BT, ';');   // ใช้ ';' แทน '\n' ทั้งขาเข้าและขาออก
+GDDLink gdd(BT, ';');
 ```
 
-ดูตัวอย่างจริงใน [`firmware/src/main.cpp`](https://github.com/Ninlapat5G/Arduino-Bluetooth-Mobile/blob/v2-ai-chat/firmware/src/main.cpp) ของแอป Arduino Bluetooth (GDD) — ใช้ `;` เป็นตัวจบร่วมกับคำสั่งขับรถ/เอียงที่ไม่มีตัวจบของตัวเอง ทำให้แยกแยะ "นี่คือ NAME:value" กับ "นี่คือคำสั่งดิบ" ได้ง่ายและทนทานกว่าการเดาจากจังหวะข้อมูลมาถึง
+ดูตัวอย่างจริงใน [`firmware/src/main.cpp`](https://github.com/Ninlapat5G/Arduino-Bluetooth-Mobile/blob/v2-ai-chat/firmware/src/main.cpp) ของแอป Arduino Bluetooth (GDD)
 
 ## ตัวอย่างทั้งหมด
 
 | ตัวอย่าง | สาธิตอะไร |
 |---|---|
-| `examples/SwitchIO/` | ผูกชื่อช่องเข้ากับขาโดยตรง ตรงกับช่องตั้งต้นของแอป (LED/Motor/Temp) |
-| `examples/CustomCallback/` | ใช้ `onReceive()` เขียน logic เองเมื่อ bind ตรงๆ ไม่พอ |
-| `examples/ButtonSync/` | ผูกชื่อเดียวกันสองทาง — ปุ่มกดจริงเปลี่ยนค่า แล้วแอปเห็นสถานะอัปเดตอัตโนมัติ |
+| `examples/SwitchIO/` | ผูกชื่อช่องเข้ากับขาตรงๆ ตรงกับช่องตั้งต้นของแอป |
+| `examples/CustomCallback/` | `onReceive()` เขียน logic เอง |
+| `examples/ButtonSync/` | สองทางบนชื่อช่องเดียวกัน |
 
-โหมดอื่นของแอป (Hand, Gamepad, Servo, Car, Tilt, Voice) ไม่เกี่ยวกับ GDDLink เลยตามที่บอกไว้ด้านบน — แต่ละโหมดมีตัวอย่าง .ino แยกของตัวเอง ง่ายและแก้ต่อได้ ดูที่ [`firmware/examples/`](https://github.com/Ninlapat5G/Arduino-Bluetooth-Mobile/tree/v2-ai-chat/firmware/examples) ของแอป (เลือกเปิดทีละไฟล์ตามโหมดที่ใช้ ไม่ต้องรวมทุกโหมดไว้ในไฟล์เดียว เพราะในการใช้งานจริงแทบไม่มีใครต่อทุกโหมดบนบอร์ดเดียวพร้อมกัน)
+โหมดอื่นของแอป (Hand, Gamepad, Servo, Car, Tilt, Voice) ไม่เกี่ยวกับ GDDLink — แต่ละโหมดมีตัวอย่างของตัวเองที่ [`firmware/examples/`](https://github.com/Ninlapat5G/Arduino-Bluetooth-Mobile/tree/v2-ai-chat/firmware/examples) ในแอป
 
 ## ทดสอบบนฮาร์ดแวร์จริง
 
-ตัวไลบรารีนี้ผ่านการทดสอบจริงบน ESP32 WROOM (build ด้วย PlatformIO, flash จริง, ยิงคำสั่งผ่าน Serial และตรวจสอบว่าขาจริงเปลี่ยนค่าตามที่คาด) — ไม่ใช่แค่รีวิวโค้ดอย่างเดียว
+ผ่านการทดสอบจริงบน ESP32 WROOM (build ด้วย PlatformIO, flash จริง, ยิงคำสั่งผ่าน Serial แล้วตรวจขาจริงว่าเปลี่ยนค่าตามที่คาด) ไม่ใช่แค่รีวิวโค้ด
 
 ## License
 
