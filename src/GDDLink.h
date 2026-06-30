@@ -1,42 +1,43 @@
 // ---------------------------------------------------------------------------
 // GDDLink — the easiest way to talk to the Arduino Bluetooth (GDD) app.
 //
-// The app's Switch I/O screen and AI chat both speak one tiny protocol:
-// a line of text shaped "NAME:value\n" (e.g. "LED:1", "Temp:25.4"). You
-// still read incoming bytes yourself with the normal Arduino pattern
-// (if/while available() + read()) — this library only turns the bytes you
-// hand it into "NAME:value" and drives the matching pin/callback/value:
+// Covers every screen the app has, not just Switch I/O. You still read
+// incoming bytes yourself with the normal Arduino pattern (if/while
+// available() + read()) — this library turns the bytes you hand it into
+// the right callback for whichever screen sent them:
 //
 //   #include <GDDLink.h>
 //   GDDLink gdd(BT);                  // BT = any Stream: BluetoothSerial,
 //                                      // HardwareSerial, SoftwareSerial...
 //                                      // (NOT named "link" — that collides
 //                                      // with a libc symbol on ESP32 boards)
-//   String readTemp() { return String(analogRead(A0)); }
+//   void onGesture(const String &name) {
+//     if (name == "FIST") digitalWrite(LED, HIGH);
+//   }
 //   void setup() {
 //     BT.begin("GDD-ESP32");
-//     gdd.bindDigitalOut("LED", 2);   // app's "LED" channel drives pin 2
-//     gdd.watch("Temp", readTemp);    // auto-reports "Temp" — but only
-//   }                                 // when the reading actually changes
+//     gdd.onGesture(onGesture);       // Hand screen, trained/built-in poses
+//   }
 //   void loop() {
-//     while (BT.available()) {
-//       gdd.feed(BT.read());          // you read the bytes, gdd parses them
-//     }
-//     gdd.poll();                     // call every loop — sends watch()ed
-//   }                                 // values out the moment they change
+//     while (BT.available()) gdd.feed(BT.read());  // you read, gdd parses
+//     gdd.poll();                                  // sends watch()ed values
+//   }
 //
-// See examples/SwitchIO for the full three-channel demo (LED, Motor, Temp)
-// that matches the app's default channels out of the box.
+// One callback per screen, registered in setup() — see examples/ for a
+// short sketch per screen (Hand, Gamepad, Servo, Car, Tilt, Voice, Switch
+// I/O). Switch I/O additionally supports the channel-name style shown in
+// examples/SwitchIO (bindDigitalOut/bindAnalogOut/watch/onReceive), since
+// that screen's "NAME:value" messages map naturally onto named channels.
 // ---------------------------------------------------------------------------
 
 #pragma once
 
 #include <Arduino.h>
 
-// How many distinct channel names one GDDLink can track, fixed at compile
-// time — no heap allocation, so it's safe on small AVR boards (Uno/Nano
-// only have 2 KB of RAM; a `new`'d array risks heap fragmentation there).
-// Need more than 16 channels? Put this BEFORE your #include <GDDLink.h>:
+// How many distinct Switch I/O channel names one GDDLink can track, fixed
+// at compile time — no heap allocation, so it's safe on small AVR boards
+// (Uno/Nano only have 2 KB of RAM; a `new`'d array risks heap fragmentation
+// there). Need more than 16 channels? Put this BEFORE your #include <GDDLink.h>:
 //   #define GDDLINK_MAX_CHANNELS 24
 #ifndef GDDLINK_MAX_CHANNELS
 #define GDDLINK_MAX_CHANNELS 16
@@ -44,30 +45,38 @@
 
 class GDDLink {
 public:
-  // Callback fired with the raw value text whenever `name` is received.
+  // ---- Switch I/O ("NAME:value") callbacks --------------------------
   using Callback = void (*)(const String &value);
-
-  // Reads a current value to (maybe) send out. Returning the same text as
-  // last time is fine — watch() only actually sends when it changes.
   using Reader = String (*)();
+
+  // ---- one callback per other screen ---------------------------------
+  using HandCallback = void (*)(int ix, int iy, int tx, int ty, int pinch);
+  using GestureCallback = void (*)(const String &name);
+  using MotionCallback = void (*)(const String &name, int value);
+  using ButtonCallback = void (*)(const String &btn, bool pressed);
+  using StickCallback = void (*)(const String &side, float x, float y);
+  using ServoCallback = void (*)(int channel, int angle);
+  using VoiceCallback = void (*)(const String &text);
+  using CarSpeedCallback = void (*)(int speed);
+  using CarCommandCallback = void (*)(const String &cmd);
 
   // `port` is kept by reference — pass an already-declared Stream
   // (BluetoothSerial, Serial, Serial1, a SoftwareSerial, ...). Used for
   // outgoing send()/watch() traffic; incoming bytes are still read by your
   // own sketch and handed to feed(), see below.
   //
-  // `terminator` is the byte that ends a "NAME:value" message, both ways —
-  // default '\n' matches the usual Arduino convention (println(), readStringUntil('\n')).
-  // Change it if your project already uses something else to separate
-  // messages on the same link (e.g. ';' if you're sharing the stream with
-  // another unframed protocol that has no terminator of its own).
+  // `terminator` ends an unframed message (Switch I/O "NAME:value", or a
+  // Car/Tilt command like "F") — default '\n'. Framed messages like
+  // "<G,FIST>" don't need it; they're delimited by '<' and '>' instead.
+  // Only change this if your Car/Tilt sketch needs to match the app, which
+  // sends those as ';'-terminated — see examples/Car and examples/Tilt.
   explicit GDDLink(Stream &port, char terminator = '\n');
 
   // Hand it one byte you just read yourself, e.g.:
   //   while (BT.available()) gdd.feed(BT.read());
-  // Builds up a line; once a complete "NAME:value" line arrives, parses
-  // it, updates the stored value, drives any pin-bound channel and fires
-  // any registered callback.
+  // Recognizes a "<...>" frame (Hand/Gamepad/Servo/Voice) or an unframed
+  // token ending in `terminator` (Switch I/O "NAME:value", or a Car/Tilt
+  // command), and fires whichever callback matches.
   void feed(char c);
 
   // Call once per loop(), unconditionally (it's cheap if nothing changed).
@@ -76,12 +85,44 @@ public:
   // that's feed()'s job.
   void poll();
 
-  // Send "name:value\n" to the other side.
+  // Send "name:value\n" to the other side (Switch I/O / AI Chat).
   void send(const String &name, const String &value);
   void send(const String &name, long value);
   void send(const String &name, int value);
   void send(const String &name, float value, uint8_t decimals = 2);
 
+  // ---- Hand screen -----------------------------------------------------
+  // onGesture: a built-in pose (FIST, OPEN, POINT, PEACE, THREE, FOUR,
+  //            THUMBSUP) or a name you trained in the app.
+  // onMotion:  a trained continuous axis, e.g. name="Bend", value 0-100.
+  // onHand:    raw wrist-relative coordinates, all five fields at once.
+  void onGesture(GestureCallback cb);
+  void onMotion(MotionCallback cb);
+  void onHand(HandCallback cb);
+
+  // ---- Gamepad screen ----------------------------------------------------
+  // onButton: btn is the button name (e.g. "A"), pressed true on press.
+  // onStick:  side is "L" or "R", x/y are -1.00..1.00.
+  void onButton(ButtonCallback cb);
+  void onStick(StickCallback cb);
+
+  // ---- Servo Studio screen ---------------------------------------------
+  // channel 1-4, angle already clamped to 0-180.
+  void onServo(ServoCallback cb);
+
+  // ---- Voice screen ------------------------------------------------------
+  // text is whatever was said, as recognized speech-to-text.
+  void onVoice(VoiceCallback cb);
+
+  // ---- Car / Tilt screens -------------------------------------------------
+  // Car sends a speed (0-255) then F/B/L/R/S commands; Tilt sends just
+  // F/B/L/R/S (plus diagonals FR/FL/BR/BL, or custom text from its Edit
+  // dialog) with no speed of its own. Use the terminator ';' constructor
+  // for both — see examples/Car and examples/Tilt.
+  void onCarSpeed(CarSpeedCallback cb);
+  void onCarCommand(CarCommandCallback cb);
+
+  // ---- Switch I/O / AI Chat ("NAME:value") ------------------------------
   // Last value received for `name` (empty string if never seen).
   String value(const String &name) const;
   long valueInt(const String &name) const;
@@ -123,12 +164,26 @@ private:
 
   Stream &_port;
   char _terminator;
+  bool _inFrame = false;
+  String _frameBuf;
   String _rxBuffer;
   Channel _channels[GDDLINK_MAX_CHANNELS]; // fixed at compile time, no heap
   uint8_t _count = 0;
 
+  HandCallback _handCb = nullptr;
+  GestureCallback _gestureCb = nullptr;
+  MotionCallback _motionCb = nullptr;
+  ButtonCallback _buttonCb = nullptr;
+  StickCallback _stickCb = nullptr;
+  ServoCallback _servoCb = nullptr;
+  VoiceCallback _voiceCb = nullptr;
+  CarSpeedCallback _carSpeedCb = nullptr;
+  CarCommandCallback _carCommandCb = nullptr;
+
   Channel *_find(const String &name) const;
   Channel *_findOrCreate(const String &name);
   void _handleLine(String line);
+  void _handleFrame(const String &frame);
+  void _handleToken(const String &tok);
   void _evalWatches();
 };

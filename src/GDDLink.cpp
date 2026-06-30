@@ -1,5 +1,37 @@
 #include "GDDLink.h"
 
+namespace {
+
+bool isAllDigits(const String &s) {
+  if (s.isEmpty()) return false;
+  for (unsigned int i = 0; i < s.length(); i++) {
+    if (!isDigit(s[i])) return false;
+  }
+  return true;
+}
+
+// Pulls the next comma-separated field off the front of s, consuming it.
+String nextField(String &s) {
+  int c = s.indexOf(',');
+  String v = (c < 0) ? s : s.substring(0, c);
+  s = (c < 0) ? "" : s.substring(c + 1);
+  return v;
+}
+
+// nth comma-separated field of f (0-based), without consuming it.
+String field(const String &f, int n) {
+  int start = 0;
+  for (int i = 0; i < n; i++) {
+    int c = f.indexOf(',', start);
+    if (c < 0) return "";
+    start = c + 1;
+  }
+  int c = f.indexOf(',', start);
+  return (c < 0) ? f.substring(start) : f.substring(start, c);
+}
+
+} // namespace
+
 GDDLink::GDDLink(Stream &port, char terminator) : _port(port), _terminator(terminator) {}
 
 GDDLink::Channel *GDDLink::_find(const String &name) const {
@@ -19,10 +51,28 @@ GDDLink::Channel *GDDLink::_findOrCreate(const String &name) {
 }
 
 void GDDLink::feed(char c) {
+  if (c == '<') {
+    _inFrame = true;
+    _frameBuf = "";
+    return;
+  }
+  if (_inFrame) {
+    if (c == '>') {
+      _inFrame = false;
+      _handleFrame(_frameBuf);
+    } else {
+      _frameBuf += c;
+    }
+    return;
+  }
   if (c == _terminator) {
-    _handleLine(_rxBuffer);
-    _rxBuffer = "";
-  } else if (c != '\r') {
+    if (_rxBuffer.length()) {
+      _handleToken(_rxBuffer);
+      _rxBuffer = "";
+    }
+    return;
+  }
+  if (c != '\r' && c != '\n') {
     _rxBuffer += c;
   }
 }
@@ -45,6 +95,67 @@ void GDDLink::_evalWatches() {
       send(c.name, v);
     }
   }
+}
+
+// A complete "<...>" frame body (without the brackets) — Hand, Gamepad,
+// Servo or Voice. Dispatched by its leading letter, same as the app's own
+// wire format: G=Hand, B=button, J=stick, S=servo, V=voice.
+void GDDLink::_handleFrame(const String &f) {
+  if (f.isEmpty()) return;
+  switch (f[0]) {
+    case 'G': {
+      String body = f.substring(2); // after "G,"
+      unsigned int commas = 0;
+      for (unsigned int i = 0; i < body.length(); i++) {
+        if (body[i] == ',') commas++;
+      }
+      if (commas == 0) {
+        if (_gestureCb) _gestureCb(body);
+      } else if (commas == 1) {
+        String name = nextField(body);
+        if (_motionCb) _motionCb(name, body.toInt());
+      } else if (_handCb) {
+        int ix = nextField(body).toInt();
+        int iy = nextField(body).toInt();
+        int tx = nextField(body).toInt();
+        int ty = nextField(body).toInt();
+        int pinch = body.toInt();
+        _handCb(ix, iy, tx, ty, pinch);
+      }
+      break;
+    }
+    case 'B':
+      if (_buttonCb) _buttonCb(field(f, 1), field(f, 2) == "1");
+      break;
+    case 'J':
+      if (_stickCb) _stickCb(field(f, 1), field(f, 2).toFloat(), field(f, 3).toFloat());
+      break;
+    case 'S':
+      if (_servoCb) _servoCb(field(f, 1).toInt(), constrain(field(f, 2).toInt(), 0, 180));
+      break;
+    case 'V': {
+      int c = f.indexOf(',');
+      if (_voiceCb) _voiceCb(c < 0 ? String() : f.substring(c + 1));
+      break;
+    }
+    default:
+      break; // unknown frame type — ignore
+  }
+}
+
+// A complete unframed token (no leading '<') — Switch I/O "NAME:value", or
+// a Car/Tilt command. A ':' means Switch I/O; otherwise it's a car token.
+void GDDLink::_handleToken(const String &tok) {
+  if (tok.isEmpty()) return;
+  if (tok.indexOf(':') > 0) {
+    _handleLine(tok);
+    return;
+  }
+  if (tok[0] == 'V' && tok.length() > 1 && isAllDigits(tok.substring(1))) {
+    if (_carSpeedCb) _carSpeedCb(tok.substring(1).toInt());
+    return;
+  }
+  if (_carCommandCb) _carCommandCb(tok);
 }
 
 void GDDLink::_handleLine(String line) {
@@ -92,6 +203,16 @@ void GDDLink::send(const String &name, float value, uint8_t decimals) {
   // ESP32 Arduino core), since uint8_t can promote to several of them.
   send(name, String(static_cast<double>(value), static_cast<unsigned int>(decimals)));
 }
+
+void GDDLink::onGesture(GestureCallback cb) { _gestureCb = cb; }
+void GDDLink::onMotion(MotionCallback cb) { _motionCb = cb; }
+void GDDLink::onHand(HandCallback cb) { _handCb = cb; }
+void GDDLink::onButton(ButtonCallback cb) { _buttonCb = cb; }
+void GDDLink::onStick(StickCallback cb) { _stickCb = cb; }
+void GDDLink::onServo(ServoCallback cb) { _servoCb = cb; }
+void GDDLink::onVoice(VoiceCallback cb) { _voiceCb = cb; }
+void GDDLink::onCarSpeed(CarSpeedCallback cb) { _carSpeedCb = cb; }
+void GDDLink::onCarCommand(CarCommandCallback cb) { _carCommandCb = cb; }
 
 String GDDLink::value(const String &name) const {
   Channel *c = _find(name);

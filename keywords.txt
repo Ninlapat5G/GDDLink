@@ -9,6 +9,15 @@
 GDDLink	KEYWORD1
 Callback	KEYWORD1
 Reader	KEYWORD1
+HandCallback	KEYWORD1
+GestureCallback	KEYWORD1
+MotionCallback	KEYWORD1
+ButtonCallback	KEYWORD1
+StickCallback	KEYWORD1
+ServoCallback	KEYWORD1
+VoiceCallback	KEYWORD1
+CarSpeedCallback	KEYWORD1
+CarCommandCallback	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
@@ -23,6 +32,15 @@ onReceive	KEYWORD2
 bindDigitalOut	KEYWORD2
 bindAnalogOut	KEYWORD2
 watch	KEYWORD2
+onGesture	KEYWORD2
+onMotion	KEYWORD2
+onHand	KEYWORD2
+onButton	KEYWORD2
+onStick	KEYWORD2
+onServo	KEYWORD2
+onVoice	KEYWORD2
+onCarSpeed	KEYWORD2
+onCarCommand	KEYWORD2
 
 #######################################
 # Constants (LITERAL1)
