@@ -95,13 +95,24 @@ GDDLink gdd(BT, ';');
 
 ## ตัวอย่างทั้งหมด
 
+ตัวอย่างที่ใช้ GDDLink จริง (โหมด Switch I/O / AI Chat):
+
 | ตัวอย่าง | สาธิตอะไร |
 |---|---|
 | `examples/SwitchIO/` | ผูกชื่อช่องเข้ากับขาตรงๆ ตรงกับช่องตั้งต้นของแอป |
 | `examples/CustomCallback/` | `onReceive()` เขียน logic เอง |
 | `examples/ButtonSync/` | สองทางบนชื่อช่องเดียวกัน |
 
-โหมดอื่นของแอป (Hand, Gamepad, Servo, Car, Tilt, Voice) ไม่เกี่ยวกับ GDDLink — แต่ละโหมดมีตัวอย่างของตัวเองที่ [`firmware/examples/`](https://github.com/Ninlapat5G/Arduino-Bluetooth-Mobile/tree/v2-ai-chat/firmware/examples) ในแอป
+โหมดอื่นของแอป ไม่เกี่ยวกับ GDDLink เลย แต่ละโหมดมีตัวอย่าง .ino แยกของตัวเองอยู่ในโฟลเดอร์เดียวกันนี้ เปิดได้ตรงใน Arduino IDE เหมือนกัน:
+
+| ตัวอย่าง | โหมดในแอป | สาธิตอะไร |
+|---|---|---|
+| `examples/Hand/` | Hand | ท่าทาง/พิกัดมือ ขยับ servo 2 แกน |
+| `examples/Gamepad/` | Gamepad | ปุ่มกด + สติ๊กอนาล็อก |
+| `examples/Servo/` | Servo Studio | สั่ง servo สูงสุด 4 ตัว |
+| `examples/Car/` | Car Controller | ขับมอเตอร์ผ่าน L298N |
+| `examples/Tilt/` | Tilt Control | ขับรถแบบเอียงมือถือ ใช้มอเตอร์ชุดเดียวกับ Car |
+| `examples/Voice/` | Voice | หาคำสำคัญจากข้อความที่แปลงจากเสียง |
 
 ## ทดสอบบนฮาร์ดแวร์จริง
 
