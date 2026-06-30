@@ -93,6 +93,23 @@ GDDLink gdd(BT, ';');   // ใช้ ';' แทน '\n' ทั้งขาเข
 
 ดูตัวอย่างจริงใน [`firmware/src/main.cpp`](https://github.com/Ninlapat5G/Arduino-Bluetooth-Mobile/blob/v2-ai-chat/firmware/src/main.cpp) ของแอป Arduino Bluetooth (GDD) — ใช้ `;` เป็นตัวจบร่วมกับคำสั่งขับรถ/เอียงที่ไม่มีตัวจบของตัวเอง ทำให้แยกแยะ "นี่คือ NAME:value" กับ "นี่คือคำสั่งดิบ" ได้ง่ายและทนทานกว่าการเดาจากจังหวะข้อมูลมาถึง
 
+## ตัวอย่างทั้งหมด
+
+| ตัวอย่าง | สาธิตอะไร |
+|---|---|
+| `examples/SwitchIO/` | ผูกชื่อช่องเข้ากับขาโดยตรง ตรงกับช่องตั้งต้นของแอป (LED/Motor/Temp) |
+| `examples/CustomCallback/` | ใช้ `onReceive()` เขียน logic เองเมื่อ bind ตรงๆ ไม่พอ |
+| `examples/ButtonSync/` | ผูกชื่อเดียวกันสองทาง — ปุ่มกดจริงเปลี่ยนค่า แล้วแอปเห็นสถานะอัปเดตอัตโนมัติ |
+| `examples/AllModes/` | GDDLink (Switch I/O / AI Chat) อยู่ร่วมกับโหมดอื่นของแอป (Hand/Gamepad/Servo/Car/Tilt/Voice) ในไฟล์ .ino เดียว เปิดตรงใน Arduino IDE ได้เลย — ไม่ต้องใช้ PlatformIO |
+
+## ทดสอบบนฮาร์ดแวร์จริง
+
+ตัวไลบรารีนี้ผ่านการทดสอบจริงบน ESP32 WROOM (build ด้วย PlatformIO, flash จริง, ยิงคำสั่งผ่าน Serial และตรวจสอบว่าขาจริงเปลี่ยนค่าตามที่คาด) — ไม่ใช่แค่รีวิวโค้ดอย่างเดียว
+
+## License
+
+Apache License 2.0 — ดูไฟล์ [LICENSE](LICENSE)
+
 ---
 
 สร้างโดย **ครูนิน × Claude**
