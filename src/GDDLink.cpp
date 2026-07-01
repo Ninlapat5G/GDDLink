@@ -110,6 +110,8 @@ void GDDLink::_handleFrame(const String &f) {
         if (body[i] == ',') commas++;
       }
       if (commas == 0) {
+        Channel *c = _find(body);
+        if (c && c->bind == Bind::gestureOut) digitalWrite(c->pin, c->bindValue ? HIGH : LOW);
         if (_gestureCb) _gestureCb(body);
       } else if (commas == 1) {
         String name = nextField(body);
@@ -124,9 +126,14 @@ void GDDLink::_handleFrame(const String &f) {
       }
       break;
     }
-    case 'B':
-      if (_buttonCb) _buttonCb(field(f, 1), field(f, 2) == "1");
+    case 'B': {
+      String btn = field(f, 1);
+      bool pressed = field(f, 2) == "1";
+      Channel *c = _find(btn);
+      if (c && c->bind == Bind::buttonOut) digitalWrite(c->pin, pressed ? HIGH : LOW);
+      if (_buttonCb) _buttonCb(btn, pressed);
       break;
+    }
     case 'J':
       if (_stickCb) _stickCb(field(f, 1), field(f, 2).toFloat(), field(f, 3).toFloat());
       break;
@@ -152,10 +159,32 @@ void GDDLink::_handleToken(const String &tok) {
     return;
   }
   if (tok[0] == 'V' && tok.length() > 1 && isAllDigits(tok.substring(1))) {
-    if (_carSpeedCb) _carSpeedCb(tok.substring(1).toInt());
+    const int speed = tok.substring(1).toInt();
+    if (_carMotorsBound) _carBoundSpeed = speed;
+    if (_carSpeedCb) _carSpeedCb(speed);
     return;
   }
+  if (_carMotorsBound) _driveBoundMotors(tok);
   if (_carCommandCb) _carCommandCb(tok);
+}
+
+// F/B/L/R/S -> the standard 6-pin H-bridge pattern used by every Car/Tilt
+// example. Anything else (H, X0/X1, diagonals, custom text) is left alone
+// here — onCarCommand() still fires for those regardless.
+void GDDLink::_driveBoundMotors(const String &cmd) {
+  int a, b, c, d;
+  if      (cmd == "F") { a = 1; b = 0; c = 1; d = 0; }
+  else if (cmd == "B") { a = 0; b = 1; c = 0; d = 1; }
+  else if (cmd == "L") { a = 0; b = 1; c = 1; d = 0; }
+  else if (cmd == "R") { a = 1; b = 0; c = 0; d = 1; }
+  else if (cmd == "S") { a = 0; b = 0; c = 0; d = 0; }
+  else return;
+  analogWrite(_carENA, _carBoundSpeed);
+  analogWrite(_carENB, _carBoundSpeed);
+  digitalWrite(_carIN1, a);
+  digitalWrite(_carIN2, b);
+  digitalWrite(_carIN3, c);
+  digitalWrite(_carIN4, d);
 }
 
 void GDDLink::_handleLine(String line) {
@@ -182,7 +211,9 @@ void GDDLink::_handleLine(String line) {
       analogWrite(ch->pin, constrain(val.toInt(), 0, 255));
       break;
     case Bind::none:
-      break;
+    case Bind::buttonOut:
+    case Bind::gestureOut:
+      break; // driven from _handleFrame instead, not a "NAME:value" line
   }
 
   if (ch->callback) ch->callback(val);
@@ -252,4 +283,28 @@ void GDDLink::watch(const String &name, Reader fn, unsigned long minIntervalMs) 
   c->minIntervalMs = minIntervalMs;
   c->lastCheckMs = 0;
   c->everSent = false;
+}
+
+void GDDLink::bindGestureDigitalOut(const String &name, uint8_t pin, uint8_t value) {
+  Channel *c = _findOrCreate(name);
+  if (!c) return;
+  c->bind = Bind::gestureOut;
+  c->pin = pin;
+  c->bindValue = value;
+  pinMode(pin, OUTPUT);
+}
+
+void GDDLink::bindButtonDigitalOut(const String &btn, uint8_t pin) {
+  Channel *c = _findOrCreate(btn);
+  if (!c) return;
+  c->bind = Bind::buttonOut;
+  c->pin = pin;
+  pinMode(pin, OUTPUT);
+}
+
+void GDDLink::bindCarMotors(uint8_t ena, uint8_t in1, uint8_t in2, uint8_t in3, uint8_t in4, uint8_t enb) {
+  _carENA = ena; _carIN1 = in1; _carIN2 = in2; _carIN3 = in3; _carIN4 = in4; _carENB = enb;
+  const uint8_t pins[] = {ena, in1, in2, in3, in4, enb};
+  for (uint8_t p : pins) pinMode(p, OUTPUT);
+  _carMotorsBound = true;
 }

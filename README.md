@@ -53,22 +53,32 @@ void loop() {
 
 **Hand** — ท่าทางสำเร็จรูป/ที่ฝึกเอง, แกนต่อเนื่อง, หรือพิกัดดิบ (ตัวอย่างเต็ม `examples/Hand`):
 ```cpp
-void onGesture(const String &name) {
-  if (name == "FIST") digitalWrite(LED, HIGH);
-  if (name == "OPEN") digitalWrite(LED, LOW);
+void setup() {
+  gdd.bindGestureDigitalOut("FIST", LED, HIGH); // ท่านี้ -> ขานี้ ไม่ต้องเขียนฟังก์ชันเอง
+  gdd.bindGestureDigitalOut("OPEN", LED, LOW);
+}
+```
+ถ้าต้องการมากกว่าตั้งขา (เช่นแกนต่อเนื่องหรือพิกัดดิบ ที่ต้อง `map()` เอง) ใช้ `onMotion`/`onHand` แทน:
+```cpp
+void onMotion(const String &name, int value) {
+  if (name == "Bend") myServo.write(map(value, 0, 100, 0, 180));
 }
 void setup() {
-  gdd.onGesture(onGesture);
+  gdd.onMotion(onMotion);
 }
 ```
 
 **Gamepad** — ปุ่มกดและสติ๊กอนาล็อก (ตัวอย่างเต็ม `examples/Gamepad`):
 ```cpp
-void onButton(const String &btn, bool pressed) {
-  if (btn == "A") digitalWrite(LED, pressed ? HIGH : LOW);
-}
 void setup() {
-  gdd.onButton(onButton);
+  gdd.bindButtonDigitalOut("A", LED); // ปุ่ม A -> ขา LED ตรงๆ ไม่ต้องเขียนฟังก์ชันเอง
+}
+```
+สติ๊กอนาล็อกต้องมี logic เอง เลยยังเป็น callback:
+```cpp
+void onStick(const String &side, float x, float y) { ... }
+void setup() {
+  gdd.onStick(onStick);
 }
 ```
 
@@ -97,13 +107,20 @@ void setup() {
 ```cpp
 GDDLink gdd(BT, ';');
 
-void onCarCommand(const String &cmd) {
-  if      (cmd == "F") motor(1, 0, 1, 0);
-  else if (cmd == "S") motor(0, 0, 0, 0);
+void setup() {
+  // มอเตอร์ H-bridge 6 ขา (เช่น L298N) แบบมาตรฐาน — จัดการ F/B/L/R/S และ
+  // ความเร็วให้อัตโนมัติทั้งหมด ไม่ต้องเขียนฟังก์ชันขับมอเตอร์เอง
+  gdd.bindCarMotors(ENA, IN1, IN2, IN3, IN4, ENB);
+}
+```
+คำสั่งอื่นนอกเหนือ F/B/L/R/S (แตร, ไฟ, แนวทแยงของ Tilt, ข้อความกำหนดเอง) ยังมาที่ `onCarCommand` เหมือนเดิม ใช้คู่กับ `bindCarMotors` ได้เลย:
+```cpp
+void onExtra(const String &cmd) {
+  if (cmd == "H") { ... } // แตร
 }
 void setup() {
-  gdd.onCarSpeed([](int speed) { spd = speed; }); // เฉพาะ Car ส่งความเร็วมาด้วย
-  gdd.onCarCommand(onCarCommand);
+  gdd.bindCarMotors(ENA, IN1, IN2, IN3, IN4, ENB);
+  gdd.onCarCommand(onExtra);
 }
 ```
 
@@ -149,14 +166,17 @@ gdd.watch("LED", []() { return String(digitalRead(LED_PIN)); });
 | `gdd.poll()` | เรียกทุกรอบ loop() เช็คว่า watch() ตัวไหนค่าเปลี่ยนแล้วส่งออก |
 | `gdd.send(name, value)` | ส่ง `name:value<terminator>` ทันที (รับ String/int/long/float) |
 | `gdd.onGesture(fn)` | Hand: ท่าทางสำเร็จรูป/ที่ฝึกเอง |
+| `gdd.bindGestureDigitalOut(name, pin, value)` | Hand: ท่านี้ -> ขานี้เป็น HIGH/LOW ไม่ต้องเขียนฟังก์ชันเอง |
 | `gdd.onMotion(fn)` | Hand: แกนต่อเนื่องที่ฝึกเอง |
 | `gdd.onHand(fn)` | Hand: พิกัดดิบ 5 ค่า |
 | `gdd.onButton(fn)` | Gamepad: ปุ่มกด |
+| `gdd.bindButtonDigitalOut(btn, pin)` | Gamepad: ขาตามสถานะปุ่มโดยตรง ไม่ต้องเขียนฟังก์ชันเอง |
 | `gdd.onStick(fn)` | Gamepad: สติ๊กอนาล็อก |
 | `gdd.onServo(fn)` | Servo Studio: channel + angle |
 | `gdd.onVoice(fn)` | Voice: ข้อความที่แปลงจากเสียง |
 | `gdd.onCarSpeed(fn)` | Car: ความเร็ว 0-255 |
-| `gdd.onCarCommand(fn)` | Car/Tilt: คำสั่ง F/B/L/R/S หรืออื่นๆ |
+| `gdd.onCarCommand(fn)` | Car/Tilt: คำสั่งที่ `bindCarMotors` ไม่รู้จัก (หรือทั้งหมด ถ้าไม่ได้ bind) |
+| `gdd.bindCarMotors(ena,in1,in2,in3,in4,enb)` | Car/Tilt: F/B/L/R/S + ความเร็ว บน H-bridge 6 ขา อัตโนมัติ |
 | `gdd.bindDigitalOut(name, pin)` | Switch I/O: ผูกชื่อช่องกับขา digital |
 | `gdd.bindAnalogOut(name, pin)` | Switch I/O: ผูกชื่อช่องกับขา PWM |
 | `gdd.onReceive(name, fn)` | Switch I/O: เรียก fn(value) ทุกครั้งที่ได้รับชื่อนี้ |
@@ -165,7 +185,7 @@ gdd.watch("LED", []() { return String(digitalRead(LED_PIN)); });
 
 ## หน่วยความจำ
 
-ไม่ใช้ heap เลย ช่อง Switch I/O เก็บใน array ขนาดคงที่ตอนคอมไพล์ ดีฟอลต์ 16 ช่อง ปลอดภัยกับบอร์ดเล็กอย่าง Uno/Nano ที่มี RAM แค่ 2KB (callback ของหน้าจออื่นเก็บเป็น function pointer ตัวเดียวต่อหน้าจอ ไม่ใช้ array เลย)
+ไม่ใช้ heap เลย ช่อง Switch I/O เก็บใน array ขนาดคงที่ตอนคอมไพล์ ดีฟอลต์ 16 ช่อง ปลอดภัยกับบอร์ดเล็กอย่าง Uno/Nano ที่มี RAM แค่ 2KB (callback ของหน้าจออื่นเก็บเป็น function pointer ตัวเดียวต่อหน้าจอ ไม่ใช้ array เลย) `bindGestureDigitalOut`/`bindButtonDigitalOut` ใช้ array ช่องเดียวกับ Switch I/O อยู่แล้ว ไม่กินหน่วยความจำเพิ่ม ส่วน `bindCarMotors` เก็บแค่เลขขา 6 ตัว ก็แทบไม่กินอะไรเพิ่มเหมือนกัน
 
 ถ้าต้องการ Switch I/O มากกว่า 16 ช่อง ใส่บรรทัดนี้ก่อน `#include <GDDLink.h>`:
 ```cpp
@@ -192,16 +212,16 @@ GDDLink gdd(BT, ';');
 | `examples/SwitchIO/` | Switch I/O | ผูกชื่อช่องเข้ากับขาตรงๆ ตรงกับช่องตั้งต้นของแอป |
 | `examples/CustomCallback/` | Switch I/O | `onReceive()` เขียน logic เอง |
 | `examples/ButtonSync/` | Switch I/O | สองทางบนชื่อช่องเดียวกัน |
-| `examples/Hand/` | Hand | ท่าทาง/พิกัดมือ ขยับ servo 2 แกน |
-| `examples/Gamepad/` | Gamepad | ปุ่มกด + สติ๊กอนาล็อก |
+| `examples/Hand/` | Hand | ท่าทาง -> ขาตรงๆ ด้วย `bindGestureDigitalOut`, พิกัด/แกน -> servo ด้วย callback |
+| `examples/Gamepad/` | Gamepad | ปุ่ม -> ขาตรงๆ ด้วย `bindButtonDigitalOut`, สติ๊กด้วย callback |
 | `examples/Servo/` | Servo Studio | สั่ง servo สูงสุด 4 ตัว |
-| `examples/Car/` | Car Controller | ขับมอเตอร์ผ่าน L298N |
-| `examples/Tilt/` | Tilt Control | ขับรถแบบเอียงมือถือ ใช้มอเตอร์ชุดเดียวกับ Car |
+| `examples/Car/` | Car Controller | ขับมอเตอร์ผ่าน L298N ด้วย `bindCarMotors` บรรทัดเดียว |
+| `examples/Tilt/` | Tilt Control | ขับรถแบบเอียงมือถือ ด้วย `bindCarMotors` เหมือนกัน |
 | `examples/Voice/` | Voice | หาคำสำคัญจากข้อความที่แปลงจากเสียง |
 
 ## ทดสอบบนฮาร์ดแวร์จริง
 
-ผ่านการทดสอบจริงบน ESP32 WROOM (build ด้วย PlatformIO, flash จริง, ยิงคำสั่งผ่าน Serial แล้วตรวจขาจริงว่าเปลี่ยนค่าตามที่คาด) ไม่ใช่แค่รีวิวโค้ด รวมถึงการ dispatch ของ callback ใหม่ทั้ง 9 ตัว (Hand/Gamepad/Servo/Voice/Car/Tilt) ที่ทดสอบยิง byte ตรงรูปแบบเดียวกับที่แอปส่งจริง
+ผ่านการทดสอบจริงบน ESP32 WROOM (build ด้วย PlatformIO, flash จริง, ยิงคำสั่งผ่าน Serial แล้วตรวจขาจริงว่าเปลี่ยนค่าตามที่คาด) ไม่ใช่แค่รีวิวโค้ด รวมถึง callback ทั้ง 9 ตัวของทุกโหมด และฟังก์ชัน bind ใหม่ (`bindGestureDigitalOut`, `bindButtonDigitalOut`, `bindCarMotors`) ที่ทดสอบยิง byte ตรงรูปแบบเดียวกับที่แอปส่งจริงแล้วอ่านค่าขาจริงกลับมาเทียบ
 
 ## License
 

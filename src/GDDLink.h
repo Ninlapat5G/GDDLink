@@ -100,11 +100,21 @@ public:
   void onMotion(MotionCallback cb);
   void onHand(HandCallback cb);
 
+  // One-line binding for the common case — no function of your own needed.
+  // Call once per gesture name you care about; `value` is HIGH or LOW.
+  //   gdd.bindGestureDigitalOut("FIST", LED_PIN, HIGH);
+  //   gdd.bindGestureDigitalOut("OPEN", LED_PIN, LOW);
+  void bindGestureDigitalOut(const String &name, uint8_t pin, uint8_t value);
+
   // ---- Gamepad screen ----------------------------------------------------
   // onButton: btn is the button name (e.g. "A"), pressed true on press.
   // onStick:  side is "L" or "R", x/y are -1.00..1.00.
   void onButton(ButtonCallback cb);
   void onStick(StickCallback cb);
+
+  // One-line binding — pin follows the button's pressed state directly
+  // (HIGH while held, LOW when released). No function of your own needed.
+  void bindButtonDigitalOut(const String &btn, uint8_t pin);
 
   // ---- Servo Studio screen ---------------------------------------------
   // channel 1-4, angle already clamped to 0-180.
@@ -121,6 +131,12 @@ public:
   // for both — see examples/Car and examples/Tilt.
   void onCarSpeed(CarSpeedCallback cb);
   void onCarCommand(CarCommandCallback cb);
+
+  // One-line binding for a standard 6-pin H-bridge (e.g. L298N). Handles
+  // F/B/L/R/S and speed automatically — no function of your own needed for
+  // basic driving. onCarCommand() still fires for anything else (H, X0/X1,
+  // diagonals, custom text), so you can layer extras on top.
+  void bindCarMotors(uint8_t ena, uint8_t in1, uint8_t in2, uint8_t in3, uint8_t in4, uint8_t enb);
 
   // ---- Switch I/O / AI Chat ("NAME:value") ------------------------------
   // Last value received for `name` (empty string if never seen).
@@ -147,7 +163,12 @@ public:
   void watch(const String &name, Reader fn, unsigned long minIntervalMs = 200);
 
 private:
-  enum class Bind : uint8_t { none, digitalOut, analogOut };
+  // buttonOut/gestureOut reuse the same name-keyed Channel array as Switch
+  // I/O's digitalOut/analogOut — button names and gesture names live in a
+  // different world than Switch I/O channel names in practice (a sketch
+  // only ever uses one screen's bindings), so sharing the array costs no
+  // extra memory instead of a separate fixed array per screen.
+  enum class Bind : uint8_t { none, digitalOut, analogOut, buttonOut, gestureOut };
 
   struct Channel {
     String name;
@@ -155,6 +176,7 @@ private:
     Callback callback = nullptr;
     Bind bind = Bind::none;
     uint8_t pin = 0;
+    uint8_t bindValue = 0; // used by Bind::gestureOut (HIGH/LOW to set)
     Reader reader = nullptr;
     unsigned long minIntervalMs = 0;
     unsigned long lastCheckMs = 0;
@@ -180,10 +202,15 @@ private:
   CarSpeedCallback _carSpeedCb = nullptr;
   CarCommandCallback _carCommandCb = nullptr;
 
+  bool _carMotorsBound = false;
+  uint8_t _carENA = 0, _carIN1 = 0, _carIN2 = 0, _carIN3 = 0, _carIN4 = 0, _carENB = 0;
+  int _carBoundSpeed = 200;
+
   Channel *_find(const String &name) const;
   Channel *_findOrCreate(const String &name);
   void _handleLine(String line);
   void _handleFrame(const String &frame);
   void _handleToken(const String &tok);
   void _evalWatches();
+  void _driveBoundMotors(const String &cmd);
 };

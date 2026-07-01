@@ -41,6 +41,9 @@ onServo	KEYWORD2
 onVoice	KEYWORD2
 onCarSpeed	KEYWORD2
 onCarCommand	KEYWORD2
+bindGestureDigitalOut	KEYWORD2
+bindButtonDigitalOut	KEYWORD2
+bindCarMotors	KEYWORD2
 
 #######################################
 # Constants (LITERAL1)

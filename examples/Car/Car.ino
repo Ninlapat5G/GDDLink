@@ -12,32 +12,17 @@ BluetoothSerial BT;
 GDDLink gdd(BT, ';');
 
 const int ENA = 5, IN1 = 6, IN2 = 7, IN3 = 8, IN4 = 9, ENB = 10;
-int spd = 160;
 
-void motor(int a, int b, int c, int d) {
-  digitalWrite(IN1, a); digitalWrite(IN2, b);
-  digitalWrite(IN3, c); digitalWrite(IN4, d);
-}
-
-void onCarSpeed(int speed) { spd = speed; }
-
-void onCarCommand(const String &cmd) {
-  analogWrite(ENA, spd); analogWrite(ENB, spd);
-  if      (cmd == "F") motor(1, 0, 1, 0);   // เดินหน้า
-  else if (cmd == "B") motor(0, 1, 0, 1);   // ถอยหลัง
-  else if (cmd == "L") motor(0, 1, 1, 0);   // เลี้ยวซ้าย
-  else if (cmd == "R") motor(1, 0, 0, 1);   // เลี้ยวขวา
-  else if (cmd == "S") motor(0, 0, 0, 0);   // หยุด
-  // "H" (แตร), "X1"/"X0" (ไฟ) หรือคำสั่งอื่น — เพิ่ม "else if" ตรงนี้
+// เพิ่มคำสั่งอื่นได้ เช่น "H" (แตร) หรือ "X1"/"X0" (ไฟ) — bindCarMotors
+// จัดการแค่ F/B/L/R/S กับความเร็วให้อัตโนมัติ ที่เหลือมาที่นี่
+void onExtra(const String &cmd) {
+  // if (cmd == "H") { ... }
 }
 
 void setup() {
   BT.begin("GDD-ESP32");
-  int pins[] = {ENA, IN1, IN2, IN3, IN4, ENB};
-  for (int p : pins) pinMode(p, OUTPUT);
-
-  gdd.onCarSpeed(onCarSpeed);
-  gdd.onCarCommand(onCarCommand);
+  gdd.bindCarMotors(ENA, IN1, IN2, IN3, IN4, ENB); // F/B/L/R/S + ความเร็ว อัตโนมัติ
+  gdd.onCarCommand(onExtra);
 }
 
 void loop() {
